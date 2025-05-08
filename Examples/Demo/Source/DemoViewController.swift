@@ -7,13 +7,42 @@
 
 import AppKit
 import Navigation
-import NavigationCore
 
 /// A simple demo view controller for testing navigation
 class DemoViewController: NSViewController {
+    // Helper to create a view controller with a centered label and custom background/icon/hideNavigation
+    static func createViewController(
+        name: String,
+        color: NSColor? = nil,
+        icon: NSImage? = nil,
+        hideNavigation: Bool = false
+    ) -> NSViewController {
+        let vc = NSViewController()
+        if let bg = color {
+            vc.view.wantsLayer = true
+            vc.view.layer?.backgroundColor = bg.cgColor
+        }
+        vc.title = "Page \(name)"
+        let label = NSTextField(labelWithString: name)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = NSFont.systemFont(ofSize: 64)
+        label.textColor = .white
+        vc.view.addSubview(label)
+        label.activateConstraints(.centerInSuperview)
+        return vc
+    }
+
+    private lazy var navigationCoordinator: NavigationCoordinator = {
+        NavigationCoordinator(initialRoutes: [AnyHashable("Welcome to the Demo")]) { router in
+            router.navigationDestination(for: String.self) { value in
+                // Create a distinct VC for each pushed string
+                let color = NSColor(calibratedHue: CGFloat(drand48()), saturation: 0.5, brightness: 0.8, alpha: 1)
+                return Self.createViewController(name: value, color: color)
+            }
+        }
+    }()
 
     override func loadView() {
-        // Set up a plain view
         view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
@@ -22,33 +51,39 @@ class DemoViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Label
-        let label = NSTextField(labelWithString: "Welcome to the Demo")
-        label.font = NSFont.systemFont(ofSize: 24, weight: .medium)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
+        let toolbar = NSView()
+        toolbar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(toolbar)
 
-        // Push button
-        let pushButton = NSButton(title: "Push Next View", target: self, action: #selector(pushNext))
+        let pushButton = NSButton(title: "Push Next", target: self, action: #selector(pushNext))
         pushButton.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(pushButton)
+        toolbar.addSubview(pushButton)
 
-        // Layout
         NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -20),
-            pushButton.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 20),
-            pushButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            toolbar.topAnchor.constraint(equalTo: view.topAnchor),
+            toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            toolbar.heightAnchor.constraint(equalToConstant: 44),
+
+            pushButton.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 8),
+            pushButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+        ])
+
+        let navController = navigationCoordinator.controller
+        addChild(navController)
+        view.addSubview(navController.view)
+        navController.view.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            navController.view.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
+            navController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            navController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            navController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
     }
 
     @objc private func pushNext() {
-        let route: AnyHashable = "Detail at \(Date())"
-        if let nav = navigationController?.stackNavigator {
-            nav.push(route)
-        } else {
-            print("No navigator found!")
-        }
+        let next = "Next \(Int.random(in: 1...1000))"
+        navigationCoordinator.push(AnyHashable(next))
     }
 }
 

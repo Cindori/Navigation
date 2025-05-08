@@ -12,7 +12,7 @@ import Combine
 @MainActor
 final class ModalController {
     private weak var host: NSViewController?
-    private let navigator: ModalNavigator
+    private let navigator: QueueNavigator
     private let router:   NavigationRouter
     private var cancellable: AnyCancellable?
     private var presentedVC: NSViewController?
@@ -23,7 +23,7 @@ final class ModalController {
     ///   - router:    the same route→VC factory you use for your nav stack
     init(
         host: NSViewController,
-        navigator: ModalNavigator,
+        navigator: QueueNavigator,
         router:   NavigationRouter
     ) {
         self.host      = host

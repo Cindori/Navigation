@@ -15,9 +15,9 @@ class NavigationWrapperViewController: NSViewController {
     var viewController: NSViewController?
     var viewToTopConstraint: NSLayoutConstraint!
 
-    weak var navigationController: StackNavigationController?
+    weak var navigationController: NavigationController?
     
-    init(viewController: NSViewController, navigationController: StackNavigationController) {
+    init(viewController: NSViewController, navigationController: NavigationController) {
         self.viewController = viewController
         self.navigationController = navigationController
         super.init(nibName: nil, bundle: nil)

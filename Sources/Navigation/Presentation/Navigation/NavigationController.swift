@@ -21,13 +21,13 @@ struct NavigationItem {
 }
 
 @MainActor
-open class StackNavigationController: NSViewController {
+open class NavigationController: NSViewController {
     static let animationDuration = 0.35
 
     // MARK: – Dependencies
     
     /// The source of truth for “what’s on the stack”
-    public let navigator: StackNavigator
+    public let navigator: Navigator
     
     /// Knows how to build a VC for each route
     public let router: NavigationRouter
@@ -54,17 +54,14 @@ open class StackNavigationController: NSViewController {
     // MARK: – Init
     
     /// Initialize with your navigator & router. Optionally push an initial route.
-    public init(
-        navigator: StackNavigator,
-        router: NavigationRouter,
-        initialRoute: AnyHashable? = nil
-    ) {
+    public init(navigator: StackNavigator, router: NavigationRouter) {
         self.navigator = navigator
         self.router    = router
         super.init(nibName: nil, bundle: nil)
         
         // 1) Observe every change to the route array
         navigator.$routes
+            .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newRoutes in
                 self?.sync(with: newRoutes)
@@ -72,9 +69,7 @@ open class StackNavigationController: NSViewController {
             .store(in: &cancellables)
         
         // 2) If desired, seed with a first route
-        if let r = initialRoute {
-            navigator.push(r)
-        }
+        sync(with: navigator.routes)
     }
     
     required public init?(coder: NSCoder) { fatalError() }
@@ -102,16 +97,7 @@ open class StackNavigationController: NSViewController {
         for route in newRoutes {
             // build the VC
             let vc = router.viewController(for: AnyHashable(route))
-            
-            // inject navigator so SwiftUI VCs can push/pop
-//            vc.navigator = navigator
-            
-            // wrap & register
-            let wrapper = NavigationWrapperViewController(viewController: vc, navigationController: self)
-            wrappers.append(wrapper)
-            
-            // call your existing push API
-            push(viewController: vc, animated: true)
+            push(viewController: vc, animated: !viewControllers.isEmpty)
         }
     }
         
@@ -337,7 +323,7 @@ open class StackNavigationController: NSViewController {
 			let slideToLeftAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
 			slideToLeftAnimation.fromValue = NSValue(caTransform3D: CATransform3DIdentity)
 			slideToLeftAnimation.toValue = NSValue(caTransform3D: slideToLeftTransform)
-            slideToLeftAnimation.duration = NavigationController.animationDuration
+            slideToLeftAnimation.duration = Self.animationDuration
 			slideToLeftAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
 			slideToLeftAnimation.fillMode = CAMediaTimingFillMode.forwards
 			slideToLeftAnimation.isRemovedOnCompletion = false
@@ -346,7 +332,7 @@ open class StackNavigationController: NSViewController {
 			let slideFromRightAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
 			slideFromRightAnimation.fromValue = NSValue(caTransform3D: slideFromRightTransform)
 			slideFromRightAnimation.toValue = NSValue(caTransform3D: CATransform3DIdentity)
-			slideFromRightAnimation.duration = NavigationController.animationDuration
+			slideFromRightAnimation.duration = Self.animationDuration
 			slideFromRightAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
 			slideFromRightAnimation.fillMode = CAMediaTimingFillMode.forwards
 			slideFromRightAnimation.isRemovedOnCompletion = false
@@ -363,7 +349,7 @@ open class StackNavigationController: NSViewController {
 			let slideToRightAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
 			slideToRightAnimation.fromValue = NSValue(caTransform3D: slideToRightTransform)
 			slideToRightAnimation.toValue = NSValue(caTransform3D: CATransform3DIdentity)
-			slideToRightAnimation.duration = NavigationController.animationDuration
+			slideToRightAnimation.duration = Self.animationDuration
 			slideToRightAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
 			slideToRightAnimation.fillMode = CAMediaTimingFillMode.forwards
 			slideToRightAnimation.isRemovedOnCompletion = false
@@ -372,7 +358,7 @@ open class StackNavigationController: NSViewController {
 			let slideToRightFromCenterAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
 			slideToRightFromCenterAnimation.fromValue = NSValue(caTransform3D: CATransform3DIdentity)
 			slideToRightFromCenterAnimation.toValue = NSValue(caTransform3D: slideToRightFromCenterTransform)
-			slideToRightFromCenterAnimation.duration = NavigationController.animationDuration
+            slideToRightFromCenterAnimation.duration = Self.animationDuration
             slideToRightFromCenterAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.default)
 			slideToRightFromCenterAnimation.fillMode = CAMediaTimingFillMode.forwards
 			slideToRightFromCenterAnimation.isRemovedOnCompletion = false
@@ -385,7 +371,7 @@ open class StackNavigationController: NSViewController {
         let shadeAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.opacity))
         shadeAnimation.fromValue = fadeOut ? 1.0 : 0
         shadeAnimation.toValue = fadeOut ? 0 : 1.0
-        shadeAnimation.duration = NavigationController.animationDuration
+        shadeAnimation.duration = Self.animationDuration
         shadeAnimation.timingFunction = CAMediaTimingFunction(name: fadeOut ? .easeIn : .easeOut)
         shadeAnimation.fillMode = CAMediaTimingFillMode.forwards
         shadeAnimation.isRemovedOnCompletion = false
@@ -411,4 +397,18 @@ open class StackNavigationController: NSViewController {
 
 		push(viewController: destinationController, animated: false)
 	}
+    
+    // MARK: - Animating
+    func animate(fromView: NSView?, toView: NSView?, animation: AnimationBlock) {
+        fromView?.wantsLayer = true
+        toView?.wantsLayer = true
+        for animation in animation(fromView, toView).fromViewAnimations {
+            fromView?.layer?.add(animation, forKey: nil)
+        }
+        for animation in animation(fromView, toView).toViewAnimations {
+            toView?.layer?.add(animation, forKey: nil)
+        }
+    }
 }
+
+public typealias AnimationBlock = (_ fromView: NSView?, _ toView: NSView?) -> (fromViewAnimations: [CAAnimation], toViewAnimations: [CAAnimation])
