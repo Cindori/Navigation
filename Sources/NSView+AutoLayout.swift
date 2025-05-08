@@ -88,7 +88,7 @@ public extension NSView {
     }
     
     func activateConstraints(_ set: NSLayoutConstraint.ConstraintsSet) {
-        guard !self.translatesAutoresizingMaskIntoConstraints else { fatalError("Cannot set constraints on a view with resizing mask") }
+        translatesAutoresizingMaskIntoConstraints = false
         switch set {
             case .centerInSuperview:
                 constraintsForCenteringInSuperview().activate()
