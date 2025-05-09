@@ -22,7 +22,7 @@ struct NavigationItem {
 
 @MainActor
 open class NavigationController: NSViewController {
-    static let animationDuration: CFTimeInterval = 2.95
+    static let animationDuration: CFTimeInterval = 0.35
 
     // MARK: – Dependencies
     public let navigator: StackNavigator

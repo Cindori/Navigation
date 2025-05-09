@@ -21,7 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // 1) Instantiate the demo view controller
-        let demoVC = DemoViewController()
+        let demoVC = DemoSheetViewController()
 
         // 2) Create the window programmatically
         window = NSWindow(
