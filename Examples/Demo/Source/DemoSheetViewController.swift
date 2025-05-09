@@ -48,6 +48,11 @@ class DemoSheetViewController: NSViewController {
         dismissButton.translatesAutoresizingMaskIntoConstraints = false
         toolbar.addSubview(dismissButton)
 
+        // Enqueue 5 Sheets button
+        let enqueueFiveButton = NSButton(title: "Enqueue 5 Sheets", target: self, action: #selector(enqueueFiveSheets))
+        enqueueFiveButton.translatesAutoresizingMaskIntoConstraints = false
+        toolbar.addSubview(enqueueFiveButton)
+
         NSLayoutConstraint.activate([
             toolbar.topAnchor.constraint(equalTo: view.topAnchor),
             toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -59,6 +64,9 @@ class DemoSheetViewController: NSViewController {
 
             dismissButton.leadingAnchor.constraint(equalTo: presentButton.trailingAnchor, constant: 8),
             dismissButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+
+            enqueueFiveButton.leadingAnchor.constraint(equalTo: dismissButton.trailingAnchor, constant: 8),
+            enqueueFiveButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
         ])
     }
 
@@ -70,6 +78,13 @@ class DemoSheetViewController: NSViewController {
 
     @objc private func dismissSheet() {
         sheetCoordinator.dismiss()
+    }
+    
+    @objc private func enqueueFiveSheets() {
+        for _ in 1...5 {
+            let next = "Sheet \(Int.random(in: 1...1000))"
+            sheetCoordinator.present(AnyHashable(next))
+        }
     }
 }
 

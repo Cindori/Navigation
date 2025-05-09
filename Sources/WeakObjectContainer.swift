@@ -8,7 +8,7 @@
 
 import Foundation
 
-public class WeakObjectContainer<T: AnyObject>: NSObject {
+class WeakObjectContainer<T: AnyObject>: NSObject {
     
     private weak var _object: T?
 

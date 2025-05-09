@@ -7,7 +7,7 @@
 
 import AppKit
 
-public extension Collection where Iterator.Element == NSLayoutConstraint {
+extension Collection where Iterator.Element == NSLayoutConstraint {
     
     /// Activates the constraints
     func activate() {
@@ -27,7 +27,7 @@ public extension Collection where Iterator.Element == NSLayoutConstraint {
 
 
 
-public extension NSLayoutConstraint {
+extension NSLayoutConstraint {
     
     /// Represents a set of constraints for use in `UIView.activateConstraintsSet(_ set:)`
     enum ConstraintsSet {
@@ -45,7 +45,7 @@ public extension NSLayoutConstraint {
     
 }
 
-public extension NSView {
+extension NSView {
     
     /**
      * Gets self.constraints + superview?.constraints for this particular view
