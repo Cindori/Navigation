@@ -10,34 +10,18 @@ import Navigation
 
 /// A simple demo view controller for testing navigation
 class DemoViewController: NSViewController {
-    // Helper to create a view controller with a centered label and custom background/icon/hideNavigation
-    static func createViewController(
-        name: String,
-        color: NSColor? = nil,
-        icon: NSImage? = nil,
-        hideNavigation: Bool = false
-    ) -> NSViewController {
-        let vc = NSViewController()
-        if let bg = color {
-            vc.view.wantsLayer = true
-            vc.view.layer?.backgroundColor = bg.cgColor
-        }
-        vc.title = "Page \(name)"
-        let label = NSTextField(labelWithString: name)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = NSFont.systemFont(ofSize: 64)
-        label.textColor = .white
-        vc.view.addSubview(label)
-        label.activateConstraints(.centerInSuperview)
-        return vc
-    }
 
     private lazy var navigationCoordinator: NavigationCoordinator = {
         NavigationCoordinator(initialRoutes: [AnyHashable("Welcome to the Demo")]) { router in
             router.navigationDestination(for: String.self) { value in
                 // Create a distinct VC for each pushed string
-                let color = NSColor(calibratedHue: CGFloat(drand48()), saturation: 0.5, brightness: 0.8, alpha: 1)
-                return Self.createViewController(name: value, color: color)
+                let color = NSColor(
+                    calibratedHue: CGFloat(drand48()),
+                    saturation: 0.5,
+                    brightness: 0.8,
+                    alpha: 1
+                )
+                return DetailViewController(name: value, color: color)
             }
         }
     }()
@@ -51,6 +35,7 @@ class DemoViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        // — Toolbar —
         let toolbar = NSView()
         toolbar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(toolbar)
@@ -58,6 +43,10 @@ class DemoViewController: NSViewController {
         let pushButton = NSButton(title: "Push Next", target: self, action: #selector(pushNext))
         pushButton.translatesAutoresizingMaskIntoConstraints = false
         toolbar.addSubview(pushButton)
+
+        let popButton = NSButton(title: "Pop Last", target: self, action: #selector(popLast))
+        popButton.translatesAutoresizingMaskIntoConstraints = false
+        toolbar.addSubview(popButton)
 
         NSLayoutConstraint.activate([
             toolbar.topAnchor.constraint(equalTo: view.topAnchor),
@@ -67,8 +56,12 @@ class DemoViewController: NSViewController {
 
             pushButton.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 8),
             pushButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+
+            popButton.leadingAnchor.constraint(equalTo: pushButton.trailingAnchor, constant: 8),
+            popButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
         ])
 
+        // — Embed the navigation controller —
         let navController = navigationCoordinator.controller
         addChild(navController)
         view.addSubview(navController.view)
@@ -81,52 +74,14 @@ class DemoViewController: NSViewController {
         ])
     }
 
+    // MARK: – Actions
+
     @objc private func pushNext() {
         let next = "Next \(Int.random(in: 1...1000))"
         navigationCoordinator.push(AnyHashable(next))
     }
-}
 
-/// A simple detail view controller to be pushed onto the stack
-class DemoDetailViewController: NSViewController {
-    let detailText: String
-
-    init(detailText: String) {
-        self.detailText = detailText
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func loadView() {
-        view = NSView(frame: .zero)
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.white.cgColor
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        let label = NSTextField(labelWithString: detailText)
-        label.font = NSFont.systemFont(ofSize: 20)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
-
-        let popButton = NSButton(title: "Pop", target: self, action: #selector(popSelf))
-        popButton.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(popButton)
-
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -10),
-            popButton.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 20),
-            popButton.centerXAnchor.constraint(equalTo: view.centerXAnchor)
-        ])
-    }
-
-    @objc private func popSelf() {
-//        navigationController?.popViewController(animated: true)
+    @objc private func popLast() {
+        navigationCoordinator.pop()
     }
 }

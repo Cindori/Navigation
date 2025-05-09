@@ -39,21 +39,21 @@ open class NavigationController: NSViewController {
     
     private var wrappers: [NavigationWrapperViewController] = []
     
-    open var viewControllers: [NSViewController] {
+    var viewControllers: [NSViewController] {
         wrappers.compactMap { $0.viewController }
     }
-    open var topViewController: NSViewController? {
+    var topViewController: NSViewController? {
         viewControllers.last
     }
-    open var previousViewController: NSViewController? {
+    var previousViewController: NSViewController? {
         viewControllers.dropLast().last
     }
-    open weak var delegate: (any NavigationControllerDelegate)?
+    weak var delegate: (any NavigationControllerDelegate)?
     
     // MARK: – Init
     
     /// Initialize with your navigator & router. Optionally push an initial route.
-    public init(navigator: StackNavigator, router: NavigationRouter) {
+    init(navigator: StackNavigator, router: NavigationRouter) {
         self.navigator = navigator
         self.router    = router
         super.init(nibName: nil, bundle: nil)
@@ -73,10 +73,9 @@ open class NavigationController: NSViewController {
     
     required public init?(coder: NSCoder) { fatalError() }
     
-    
     // MARK: – View Lifecycle
     
-    open override func loadView() {
+    public override func loadView() {
         view = NSView(frame: .zero, usingConstraints: true, wantsLayer: true)
         view.clipsToBounds = true
     }
@@ -86,22 +85,20 @@ open class NavigationController: NSViewController {
     
     /// Reconcile child VCs to match the navigator’s route stack immediately
     private func sync(with routes: [AnyHashable]) {
-        // 1) POP any extra view controllers
-        while viewControllers.count > routes.count {
-            popViewController(animated: true)
-        }
+        // 1) POP view controllers if needed to sync up
+        // TODO
+        
+        
         // 2) PUSH any new routes
-        let newRoutes = routes.suffix(from: viewControllers.count)
-        for route in newRoutes {
-            let vc = router.viewController(for: route)
-            let shouldAnimate = !viewControllers.isEmpty
-            push(viewController: vc, animated: shouldAnimate)
+        let vcs = routes.suffix(from: viewControllers.count).map { router.viewController(for: $0) }
+        if !vcs.isEmpty {
+            push(viewControllers: vcs, animated: !viewControllers.isEmpty)
         }
     }
         
     // MARK: - Pushing
     
-    open func push(viewControllers: [NSViewController], contentAnimation: AnimationBlock?, navigationAnimation: AnimationBlock?, completion: (() -> Void)? = nil) {
+    func push(viewControllers: [NSViewController], animated: Bool = true, completion: (() -> Void)? = nil) {
         guard Set(self.viewControllers).isDisjoint(with: viewControllers) else {
             print("Navigation Controller tried to push a view controller that's already in the hierarchy")
             return
@@ -123,7 +120,7 @@ open class NavigationController: NSViewController {
         let viewController = viewControllers.last!
         let wrapper = viewController.navigationWrapper!
         
-        delegate?.navigationController(self, willShowViewController: viewController, animated: (contentAnimation != nil))
+        delegate?.navigationController(self, willShowViewController: viewController, animated: animated)
         
 //        Toolbar.shared.setNavigationItem(.init(title: viewController.title, backAction: isPushingNewRoot ? nil : { [weak self] in
 //            self?.popViewController(animated: true)
@@ -134,7 +131,8 @@ open class NavigationController: NSViewController {
         
         wrapper.view.activateConstraints(.fillSuperview)
         
-        if let contentAnimation = contentAnimation {
+        if animated {
+            let contentAnimation = defaultPushAnimation()
             CATransaction.begin()
             CATransaction.setCompletionBlock { [weak self] in
                 guard let self = self else { return }
@@ -153,33 +151,16 @@ open class NavigationController: NSViewController {
         }
     }
 
-    open func push(viewControllers: [NSViewController], animation: AnimationBlock?, completion: (() -> Void)? = nil) {
-        let navAnimation: AnimationBlock? = animation != nil ? defaultPushAnimation() : nil
-        push(viewControllers: viewControllers, contentAnimation: animation, navigationAnimation: navAnimation, completion: completion)
-    }
-
-    open func push(viewControllers: [NSViewController], animated: Bool, completion: (() -> Void)? = nil) {
-        if animated {
-            push(viewControllers: viewControllers, animation: defaultPushAnimation(), completion: completion)
-        } else {
-            push(viewControllers: viewControllers, animation: nil, completion: completion)
-        }
-    }
-    
-    open func push(viewController: NSViewController, animated: Bool, completion: (() -> Void)? = nil) {
-        push(viewControllers: [viewController], animated: animated, completion: completion)
-    }
-    
     // MARK: - Popping
     
-    open func pop(toViewController viewController: NSViewController, contentAnimation: AnimationBlock?, navigationAnimation: AnimationBlock?, completion: (() -> Void)? = nil) {
+    func pop(toViewController viewController: NSViewController, animated: Bool = true, completion: (() -> Void)? = nil) {
         guard let wrapper = viewController.navigationWrapper else { return }
         guard Set(wrappers).contains(wrapper) else { return }
         guard let rootViewController = wrappers.first else { return }
         guard let topViewController = topViewController else { return }
         guard topViewController != rootViewController else { return }
 
-        delegate?.navigationController(self, willShowViewController: viewController, animated: (contentAnimation != nil))
+        delegate?.navigationController(self, willShowViewController: viewController, animated: animated)
 
         let viewControllerPosition = wrappers.firstIndex(of: wrapper)
         
@@ -194,7 +175,7 @@ open class NavigationController: NSViewController {
         wrapper.view.translatesAutoresizingMaskIntoConstraints = false
         wrapper.view.activateConstraints(.fillSuperview)
         
-        if let contentAnimation = contentAnimation {
+        if animated {
             CATransaction.begin()
             CATransaction.setCompletionBlock { [weak self] in
                 guard let self = self else { return }
@@ -208,7 +189,7 @@ open class NavigationController: NSViewController {
                 self.delegate?.navigationController(self, didShowViewController: viewController, animated: true)
                 completion?()
             }
-            animatePop(toView: wrapper.view, animation: contentAnimation)
+            animatePop(toView: wrapper.view, animation: defaultPopAnimation())
             CATransaction.commit()
         } else {
             let previousWrapper = self.topViewController?.navigationWrapper
@@ -223,38 +204,7 @@ open class NavigationController: NSViewController {
         }
     }
 
-    open func pop(toViewController viewController: NSViewController, animation: AnimationBlock?, completion: (() -> Void)?) {
-        let navAnimation: AnimationBlock? = animation != nil ? defaultPopAnimation() : nil
-        pop(toViewController: viewController, contentAnimation: animation, navigationAnimation: navAnimation, completion: completion)
-    }
-
-    open func pop(toViewController viewController: NSViewController, animated: Bool, completion: (() -> Void)?) {
-        if animated {
-            pop(toViewController: viewController, animation: defaultPopAnimation(), completion: completion)
-        } else {
-            pop(toViewController: viewController, animation: nil, completion: completion)
-        }
-    }
-
-    open func popViewController(contentAnimation: AnimationBlock?, navigationAnimation: AnimationBlock?, completion: (() -> Void)?) {
-        guard let previousViewController = previousViewController else { return }
-        pop(toViewController: previousViewController, contentAnimation: contentAnimation, navigationAnimation: navigationAnimation, completion: completion)
-    }
-
-    open func popViewController(animation: AnimationBlock?, completion: (() -> Void)?) {
-        let navAnimation: AnimationBlock? = animation != nil ? defaultPopAnimation() : nil
-        popViewController(contentAnimation: animation, navigationAnimation: navAnimation, completion: completion)
-    }
-
-    open func popViewController(animated: Bool, completion: (() -> Void)? = nil) {
-        if animated {
-            popViewController(animation: defaultPopAnimation(), completion: completion)
-        } else {
-            popViewController(animation: nil, completion: completion)
-        }
-    }
-
-    open func set(viewControllers: [NSViewController], animated: Bool, completion: (() -> Void)? = nil) {
+    func set(viewControllers: [NSViewController], animated: Bool, completion: (() -> Void)? = nil) {
         guard !viewControllers.isEmpty else { completion?(); return }
         if animated {
             if let lastViewController = viewControllers.last,
@@ -267,27 +217,6 @@ open class NavigationController: NSViewController {
             }
         } else {
             push(viewControllers: viewControllers, animated: false, completion: completion)
-        }
-    }
-    
-    open func popToRootViewController(contentAnimation: AnimationBlock?, navigationAnimation: AnimationBlock?, completion: (() -> Void)?) {
-        guard let rootViewController = wrappers.first,
-            let topViewController = topViewController,
-            topViewController != rootViewController else { completion?(); return }
-
-        pop(toViewController: rootViewController, contentAnimation: contentAnimation, navigationAnimation: navigationAnimation, completion: completion)
-    }
-
-    open func popToRootViewController(animation: AnimationBlock?, completion: (() -> Void)?) {
-        let navAnimation: AnimationBlock? = animation != nil ? defaultPopAnimation() : nil
-        popToRootViewController(contentAnimation: animation, navigationAnimation: navAnimation, completion: completion)
-    }
-
-    open func popToRootViewController(animated: Bool, completion: (() -> Void)? = nil) {
-        if animated {
-            popToRootViewController(animation: defaultPopAnimation(), completion: completion)
-        } else {
-            popToRootViewController(animation: nil, completion: completion)
         }
     }
 
@@ -319,7 +248,7 @@ open class NavigationController: NSViewController {
     }
     
     // 1. Update the animatePush method to use defaultPushAnimation
-    public func animatePush(_ animation: AnimationBlock) {
+    func animatePush(_ animation: AnimationBlock) {
         guard let fromView = previousViewController?.navigationWrapper?.view,
               let toView = topViewController?.navigationWrapper?.view else {
             animate(fromView: nil, toView: nil, animation: animation)
@@ -374,7 +303,7 @@ open class NavigationController: NSViewController {
     }
 
     // 2. Update the animatePop method similarly
-    public func animatePop(toView view: NSView?, animation: AnimationBlock) {
+    func animatePop(toView view: NSView?, animation: AnimationBlock) {
         guard let fromView = topViewController?.navigationWrapper?.view,
               let toView = view else {
             animate(fromView: nil, toView: view, animation: animation)
@@ -434,7 +363,7 @@ open class NavigationController: NSViewController {
     }
 
     // 3. Keep your defaultPushAnimation and defaultPopAnimation functions
-    open func defaultPushAnimation() -> AnimationBlock {
+    func defaultPushAnimation() -> AnimationBlock {
         return { [weak self] (fromView, toView) in
             let containerViewBounds = self?.view.bounds ?? .zero
             
@@ -468,7 +397,7 @@ open class NavigationController: NSViewController {
         }
     }
 
-    open func defaultPopAnimation() -> AnimationBlock {
+    func defaultPopAnimation() -> AnimationBlock {
         return { [weak self] (fromView, toView) in
             let containerViewBounds = self?.view.bounds ?? .zero
 
@@ -507,14 +436,6 @@ open class NavigationController: NSViewController {
             return ([slideToRightFromCenterAnimation], [slideToRightAnimation])
         }
     }
-
-    // MARK: - Storyboard
-    open override func prepare(for segue: NSStoryboardSegue, sender: Any?) {
-        guard segue.identifier == "rootViewController" else { return }
-        guard let destinationController = segue.destinationController as? NSViewController else { return }
-
-        push(viewController: destinationController, animated: false)
-    }
     
     // MARK: - Animating
     func animate(fromView: NSView?, toView: NSView?, animation: AnimationBlock) {
@@ -535,4 +456,21 @@ open class NavigationController: NSViewController {
     }
 }
 
-public typealias AnimationBlock = (_ fromView: NSView?, _ toView: NSView?) -> (fromViewAnimations: [CAAnimation], toViewAnimations: [CAAnimation])
+typealias AnimationBlock = (_ fromView: NSView?, _ toView: NSView?) -> (fromViewAnimations: [CAAnimation], toViewAnimations: [CAAnimation])
+
+extension NSView {
+    
+    private static let ShadeViewName = "ShadeView"
+    
+    func installShadeView(color: NSColor) -> NSView {
+        let shadeView = NSView(frame: bounds)
+        shadeView.wantsLayer = true
+        shadeView.layer?.backgroundColor = color.cgColor
+        shadeView.identifier = .init(NSView.ShadeViewName)
+        addSubview(shadeView)
+        shadeView.translatesAutoresizingMaskIntoConstraints = false
+        shadeView.activateConstraints(.fillSuperview)
+        return shadeView
+    }
+    
+}

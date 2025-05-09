@@ -8,18 +8,18 @@
 
 import AppKit
 
-public protocol NavigationControllerDelegate: AnyObject {
+protocol NavigationControllerDelegate: AnyObject {
 	func navigationController(_ navigationController: NavigationController, willShowViewController viewController: NSViewController, animated: Bool)
 	func navigationController(_ navigationController: NavigationController, didShowViewController viewController: NSViewController, animated: Bool)
 }
 
 extension NavigationControllerDelegate {
     
-    public func navigationController(_ navigationController: NavigationController, willShowViewController viewController: NSViewController, animated: Bool) {
+    func navigationController(_ navigationController: NavigationController, willShowViewController viewController: NSViewController, animated: Bool) {
         
     }
     
-    public func navigationController(_ navigationController: NavigationController, didShowViewController viewController: NSViewController, animated: Bool) {
+    func navigationController(_ navigationController: NavigationController, didShowViewController viewController: NSViewController, animated: Bool) {
         
     }
     
