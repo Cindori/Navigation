@@ -20,7 +20,7 @@ class NavigationWrapperViewController: NSViewController {
     private var shadeView: NSView = {
         let view = NSView(frame: .zero)
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
+        view.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
         view.identifier = .init("ShadeView")
         view.layer?.opacity = 0
 //        view.layer?.filters = [.dark]

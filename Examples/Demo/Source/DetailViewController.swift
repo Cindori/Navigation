@@ -30,6 +30,7 @@ class DetailViewController: NSViewController {
     override func loadView() {
         view = NSView(frame: .zero)
         view.wantsLayer = true
+        view.layer?.opacity = 0.95
         if let bg = color {
             view.layer?.backgroundColor = bg.cgColor
         }
