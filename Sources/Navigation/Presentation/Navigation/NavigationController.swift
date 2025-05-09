@@ -13,7 +13,7 @@ import Combine
 struct NavigationItem {
     var title: String? = nil
     var backAction: (() -> Void)? = nil
-
+    
     init(title: String? = nil, backAction: (() -> Void)? = nil) {
         self.title = title
         self.backAction = backAction
@@ -22,8 +22,8 @@ struct NavigationItem {
 
 @MainActor
 open class NavigationController: NSViewController {
-    static let animationDuration = 0.35
-
+    static let animationDuration = 2.95
+    
     // MARK: – Dependencies
     
     /// The source of truth for “what’s on the stack”
@@ -48,7 +48,6 @@ open class NavigationController: NSViewController {
     var previousViewController: NSViewController? {
         viewControllers.dropLast().last
     }
-    weak var delegate: (any NavigationControllerDelegate)?
     
     // MARK: – Init
     
@@ -83,145 +82,259 @@ open class NavigationController: NSViewController {
     
     // MARK: – Sync Logic
     
-    /// Reconcile child VCs to match the navigator’s route stack immediately
+    private var vcToRouteHashMap: [NSViewController: AnyHashable] = [:]
+    
     private func sync(with routes: [AnyHashable]) {
-        // 1) POP view controllers if needed to sync up
-        // TODO
+        // 1. Convert routes to VCs, reusing existing ones
+        let routeToVC: [AnyHashable: NSViewController] = Dictionary(
+            viewControllers.compactMap { vc in
+                if let route = vcToRouteHashMap[vc] {
+                    return (route, vc)
+                }
+                return nil
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
         
+        let targetVCs = routes.map { route -> NSViewController in
+            if let existingVC = routeToVC[route] {
+                return existingVC
+            } else {
+                let newVC = router.viewController(for: route)
+                vcToRouteHashMap[newVC] = route
+                return newVC
+            }
+        }
         
-        // 2) PUSH any new routes
-        let vcs = routes.suffix(from: viewControllers.count).map { router.viewController(for: $0) }
-        if !vcs.isEmpty {
-            push(viewControllers: vcs, animated: !viewControllers.isEmpty)
+        // 2. Early exit if nothing changed
+        if targetVCs == viewControllers {
+            return
+        }
+        
+        // 3. Find VCs to remove
+        let targetVCSet = Set(targetVCs)
+        let currentVCSet = Set(viewControllers)
+        let vcsToRemove = currentVCSet.subtracting(targetVCSet)
+        
+        // 4. Figure out the animation type
+        let needsAnimation = !viewControllers.isEmpty && !targetVCs.isEmpty
+        let isPush = needsAnimation && targetVCs.count > viewControllers.count
+        let isPop = needsAnimation && targetVCs.count < viewControllers.count
+    
+        // 6. Create a dictionary of existing wrappers by VC
+        let vcToWrapper = Dictionary(
+            wrappers.map { ($0.viewController, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        
+        // 7. Create the new wrappers array
+        let newWrappers = targetVCs.map { vc -> NavigationWrapperViewController in
+            if let existingWrapper = vcToWrapper[vc] {
+                return existingWrapper
+            } else {
+                // Create new wrapper but don't add as child yet
+                let wrapper = NavigationWrapperViewController(viewController: vc, navigationController: self)
+                return wrapper
+            }
+        }
+        
+        // 8. Determine action and handle view updates and animations
+        if isPush, let targetWrapper = newWrappers.last {
+            // Get the current visible wrapper
+            let sourceWrapper = wrappers.last!
+            
+            // Update state
+            wrappers = newWrappers
+            
+            // Add target wrapper using the convenience method
+            embed(child: targetWrapper)
+            
+            // Animate with a completion handler that does cleanup
+            animatePush(fromView: sourceWrapper.view, toView: targetWrapper.view) {
+                // Cleanup happens here after animation completes
+                
+                // 1. Remove unused views from hierarchy (keep in stack)
+                for wrapper in self.wrappers.dropLast() {
+                    wrapper.view.removeFromSuperview()
+                }
+                
+                // 2. Clean up completely removed view controllers
+                for vc in vcsToRemove {
+                    if let wrapper = vcToWrapper[vc] {
+                        wrapper.dislodgeFromParent()
+                    }
+                    self.vcToRouteHashMap.removeValue(forKey: vc)
+                }
+            }
+        } else if isPop, let targetWrapper = newWrappers.last {
+            // Get the current visible wrapper
+            let sourceWrapper = wrappers.last!
+            
+            // Update state
+            wrappers = newWrappers
+            
+            // Add target wrapper below source view using the convenience method
+            embed(child: targetWrapper, positioned: .below, relativeTo: sourceWrapper.view)
+            
+            // Animate with a completion handler that does cleanup
+            animatePop(fromView: sourceWrapper.view, toView: targetWrapper.view) {
+                // Cleanup happens here after animation completes
+                
+                // Clean up completely removed view controllers
+                for vc in vcsToRemove {
+                    if let wrapper = vcToWrapper[vc] {
+                        wrapper.dislodgeFromParent()
+                    }
+                    self.vcToRouteHashMap.removeValue(forKey: vc)
+                }
+            }
+        } else {
+            // No animation needed - just update views
+            
+            // Update state first
+            wrappers = newWrappers
+            
+            // Remove all views from hierarchy
+            for wrapper in wrappers.dropLast() {
+                wrapper.view.removeFromSuperview()
+            }
+            
+            // Add the last wrapper using the convenience method
+            if let lastWrapper = wrappers.last {
+                // Make sure it's added as a child if it's new
+                if lastWrapper.parent == nil {
+                    embed(child: lastWrapper)
+                } else {
+                    // Just add the view if it's already a child
+                    view.addSubview(lastWrapper.view)
+                    lastWrapper.view.activateConstraints(.fillSuperview)
+                }
+            }
+            
+            // Clean up removed wrappers
+            for vc in vcsToRemove {
+                if let wrapper = vcToWrapper[vc] {
+                    wrapper.dislodgeFromParent()
+                }
+                self.vcToRouteHashMap.removeValue(forKey: vc)
+            }
         }
     }
-        
+    
     // MARK: - Pushing
     
-    func push(viewControllers: [NSViewController], animated: Bool = true, completion: (() -> Void)? = nil) {
-        guard Set(self.viewControllers).isDisjoint(with: viewControllers) else {
-            print("Navigation Controller tried to push a view controller that's already in the hierarchy")
-            return
+    private func animatePush(fromView: NSView, toView: NSView, completion: @escaping () -> Void) {
+        
+        // Get current transform from presentation layer if possible
+        let currentTransform = fromView.layer?.presentation()?.transform ?? CATransform3DIdentity
+        fromView.layer?.removeAllAnimations()
+        toView.layer?.removeAllAnimations()
+        
+        // Ensure current transform is applied immediately
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fromView.layer?.transform = currentTransform
+        CATransaction.commit()
+        
+        // Create animations
+        let slideOut = slideAnimation(
+            from: currentTransform,
+            to: CATransform3DMakeTranslation(-view.bounds.width / 4, 0, 0)
+        )
+        
+        let slideIn = slideAnimation(
+            from: CATransform3DMakeTranslation(view.bounds.width, 0, 0),
+            to: CATransform3DIdentity
+        )
+        
+        let fromGroup = CAAnimationGroup()
+        fromGroup.animations = [slideOut]
+        fromGroup.duration = slideOut.duration
+        fromGroup.timingFunction = slideOut.timingFunction
+        fromGroup.fillMode = .forwards
+        fromGroup.isRemovedOnCompletion = false
+        
+        let toGroup = CAAnimationGroup()
+        toGroup.animations = [slideIn]
+        toGroup.duration = slideIn.duration
+        toGroup.timingFunction = slideIn.timingFunction
+        toGroup.fillMode = .forwards
+        toGroup.isRemovedOnCompletion = false
+        
+        // Apply animations with cleanup on completion
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            completion()
         }
-        guard !viewControllers.isEmpty else {
-            print("Navigation Controller tried to push empty view controller collection")
-            return
-        }
         
-        let isPushingNewRoot = self.viewControllers.isEmpty
-        let outWrapper = topViewController?.navigationWrapper
-
-        var wrappers = [NavigationWrapperViewController]()
-        viewControllers.forEach({ viewController in
-            let wrapper = NavigationWrapperViewController(viewController: viewController, navigationController: self)
-            self.wrappers.append(wrapper)
-            wrappers.append(wrapper)
-        })
-        let viewController = viewControllers.last!
-        let wrapper = viewController.navigationWrapper!
-        
-        delegate?.navigationController(self, willShowViewController: viewController, animated: animated)
-        
-//        Toolbar.shared.setNavigationItem(.init(title: viewController.title, backAction: isPushingNewRoot ? nil : { [weak self] in
-//            self?.popViewController(animated: true)
-//        }), animated: navigationAnimation != nil)
-        
-        // Add the new view
-        view.addSubview(wrapper.view)
-        
-        wrapper.view.activateConstraints(.fillSuperview)
-        
-        if animated {
-            let contentAnimation = defaultPushAnimation()
-            CATransaction.begin()
-            CATransaction.setCompletionBlock { [weak self] in
-                guard let self = self else { return }
-                let constraints = outWrapper?.view.constraintsForPinningEdgesToSuperview() ?? []
-                outWrapper?.view.removeConstraints(constraints)
-                outWrapper?.view.removeFromSuperview()
-                outWrapper?.view.layer?.removeAllAnimations()
-                self.delegate?.navigationController(self, didShowViewController: viewController, animated: true)
-                completion?()
-            }
-            animatePush(contentAnimation)
-            CATransaction.commit()
-        } else {
-            delegate?.navigationController(self, didShowViewController: viewController, animated: false)
-            completion?()
-        }
+        fromView.layer?.add(fromGroup, forKey: "groupFrom")
+        toView.layer?.add(toGroup, forKey: "groupTo")
+        CATransaction.commit()
     }
-
+    
+    
     // MARK: - Popping
     
-    func pop(toViewController viewController: NSViewController, animated: Bool = true, completion: (() -> Void)? = nil) {
-        guard let wrapper = viewController.navigationWrapper else { return }
-        guard Set(wrappers).contains(wrapper) else { return }
-        guard let rootViewController = wrappers.first else { return }
-        guard let topViewController = topViewController else { return }
-        guard topViewController != rootViewController else { return }
-
-        delegate?.navigationController(self, willShowViewController: viewController, animated: animated)
-
-        let viewControllerPosition = wrappers.firstIndex(of: wrapper)
+    private func animatePop(fromView: NSView, toView: NSView, completion: @escaping () -> Void) {
+        // Get current transforms
+        let fromCurrentTransform = fromView.layer?.presentation()?.transform ?? CATransform3DIdentity
+        let toCurrentTransform = toView.layer?.presentation()?.transform ?? CATransform3DMakeTranslation(-view.bounds.width / 4, 0, 0)
         
-        let isRoot = viewControllerPosition == 0
-//        Toolbar.shared.setNavigationItem(.init(title: viewController.title, backAction: isRoot ? nil : { [weak self] in
-//            self?.popViewController(animated: true)
-//        }), animated: navigationAnimation != nil)
-
-        // Add the new view
+        fromView.layer?.removeAllAnimations()
+        toView.layer?.removeAllAnimations()
         
-        view.addSubview(wrapper.view, positioned: .below, relativeTo: topViewController.view)
-        wrapper.view.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.view.activateConstraints(.fillSuperview)
+        // Apply current transforms immediately
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fromView.layer?.transform = fromCurrentTransform
+        toView.layer?.transform = toCurrentTransform
+        CATransaction.commit()
         
-        if animated {
-            CATransaction.begin()
-            CATransaction.setCompletionBlock { [weak self] in
-                guard let self = self else { return }
-                let previousWrapper = self.topViewController?.navigationWrapper
-                let constraints = previousWrapper?.view.constraintsForPinningEdgesToSuperview() ?? []
-                previousWrapper?.view.removeConstraints(constraints)
-                previousWrapper?.view.removeFromSuperview()
-                previousWrapper?.view.layer?.removeAllAnimations()
-                let range = (viewControllerPosition! + 1)..<self.wrappers.count
-                self.wrappers.removeSubrange(range)
-                self.delegate?.navigationController(self, didShowViewController: viewController, animated: true)
-                completion?()
-            }
-            animatePop(toView: wrapper.view, animation: defaultPopAnimation())
-            CATransaction.commit()
-        } else {
-            let previousWrapper = self.topViewController?.navigationWrapper
-            if let constraints = previousWrapper?.view.constraintsForPinningEdgesToSuperview() {
-                previousWrapper?.view.removeConstraints(constraints)
-            }
-            previousWrapper?.view.removeFromSuperview()
-            let range = (viewControllerPosition! + 1)..<self.wrappers.count
-            wrappers.removeSubrange(range)
-            delegate?.navigationController(self, didShowViewController: viewController, animated: false)
-            completion?()
+        // Create animations
+        let slideRight = slideAnimation(
+            from: fromCurrentTransform,
+            to: CATransform3DMakeTranslation(view.bounds.width, 0, 0),
+            timing: .default
+        )
+        
+        let slideCenter = slideAnimation(
+            from: toCurrentTransform,
+            to: CATransform3DIdentity
+        )
+        
+        // Apply animations with cleanup on completion
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            completion()
         }
+        
+        fromView.layer?.add(slideRight, forKey: "popFrom")
+        toView.layer?.add(slideCenter, forKey: "popTo")
+        CATransaction.commit()
     }
-
-    func set(viewControllers: [NSViewController], animated: Bool, completion: (() -> Void)? = nil) {
-        guard !viewControllers.isEmpty else { completion?(); return }
-        if animated {
-            if let lastViewController = viewControllers.last,
-                let wrapper = lastViewController.navigationWrapper,
-                self.wrappers.contains(wrapper),
-                wrapper != topViewController {
-                pop(toViewController: lastViewController, animated: true, completion: completion)
-            } else {
-                push(viewControllers: viewControllers, animated: true, completion: completion)
-            }
-        } else {
-            push(viewControllers: viewControllers, animated: false, completion: completion)
-        }
-    }
-
+    
     // MARK: - Animations
-
+    
+    private func slideAnimation(from: CATransform3D, to: CATransform3D, timing: CAMediaTimingFunctionName = .easeOut) -> CABasicAnimation {
+        let animation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
+        animation.fromValue = NSValue(caTransform3D: from)
+        animation.toValue = NSValue(caTransform3D: to)
+        animation.duration = Self.animationDuration
+        animation.timingFunction = CAMediaTimingFunction(name: timing)
+        animation.fillMode = .forwards
+        animation.isRemovedOnCompletion = false
+        return animation
+    }
+    
+    private func fadeAnimation(to: Float, timing: CAMediaTimingFunctionName = .easeOut) -> CABasicAnimation {
+        let animation = CABasicAnimation(keyPath: #keyPath(CALayer.opacity))
+        animation.toValue = to
+        animation.duration = Self.animationDuration
+        animation.timingFunction = CAMediaTimingFunction(name: timing)
+        animation.fillMode = .forwards
+        animation.isRemovedOnCompletion = false
+        return animation
+    }
     
     func shadeAnimation(shadeLayer: CALayer, fadeOut: Bool) -> CABasicAnimation {
         // Capture the current opacity value from the presentation layer if it exists
@@ -231,7 +344,9 @@ open class NavigationController: NSViewController {
         }
         
         let shadeAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.opacity))
-        shadeAnimation.fromValue = currentOpacity
+        if let presentationLayer = shadeLayer.presentation() {
+            shadeAnimation.fromValue = presentationLayer.opacity
+        }
         shadeAnimation.toValue = fadeOut ? 0.0 : 1.0
         shadeAnimation.duration = Self.animationDuration
         shadeAnimation.timingFunction = CAMediaTimingFunction(name: fadeOut ? .easeIn : .easeOut)
@@ -247,121 +362,6 @@ open class NavigationController: NSViewController {
         return shadeAnimation
     }
     
-    // 1. Update the animatePush method to use defaultPushAnimation
-    func animatePush(_ animation: AnimationBlock) {
-        guard let fromView = previousViewController?.navigationWrapper?.view,
-              let toView = topViewController?.navigationWrapper?.view else {
-            animate(fromView: nil, toView: nil, animation: animation)
-            return
-        }
-        
-        // Handle main view animations
-        var fromCurrentTransform = CATransform3DIdentity
-        if let presentationLayer = fromView.layer?.presentation() {
-            fromCurrentTransform = presentationLayer.transform
-        }
-        
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        fromView.layer?.transform = fromCurrentTransform
-        CATransaction.commit()
-        
-        fromView.layer?.removeAllAnimations()
-        toView.layer?.removeAllAnimations()
-        
-        let (fromViewAnimations, toViewAnimations) = animation(fromView, toView)
-        
-        for (index, anim) in fromViewAnimations.enumerated() {
-            fromView.layer?.add(anim, forKey: "pushAnimation\(index)")
-        }
-        
-        for (index, anim) in toViewAnimations.enumerated() {
-            toView.layer?.add(anim, forKey: "pushAnimation\(index)")
-        }
-        
-        // Create the shade view
-        let shadeView = fromView.installShadeView(color: NSColor.black.withAlphaComponent(0.25))
-        shadeView.layer?.opacity = 0
-        
-        // Animate the shade view
-        let shadeAnim = CABasicAnimation(keyPath: #keyPath(CALayer.opacity))
-        shadeAnim.fromValue = 0
-        shadeAnim.toValue = 1.0
-        shadeAnim.duration = Self.animationDuration
-        shadeAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        shadeAnim.fillMode = CAMediaTimingFillMode.forwards
-        shadeAnim.isRemovedOnCompletion = false
-        
-        // Set up a separate transaction for the shade animation to handle its removal
-        CATransaction.begin()
-        CATransaction.setCompletionBlock {
-            // Remove the shade view when animation completes
-            shadeView.removeFromSuperview()
-        }
-        shadeView.layer?.add(shadeAnim, forKey: "shadeAnimation")
-        CATransaction.commit()
-    }
-
-    // 2. Update the animatePop method similarly
-    func animatePop(toView view: NSView?, animation: AnimationBlock) {
-        guard let fromView = topViewController?.navigationWrapper?.view,
-              let toView = view else {
-            animate(fromView: nil, toView: view, animation: animation)
-            return
-        }
-        
-        // Handle main view animations
-        var fromCurrentTransform = CATransform3DIdentity
-        if let presentationLayer = fromView.layer?.presentation() {
-            fromCurrentTransform = presentationLayer.transform
-        }
-        
-        var toCurrentTransform = CATransform3DMakeTranslation(-self.view.bounds.width / 4, 0, 0)
-        if let presentationLayer = toView.layer?.presentation() {
-            toCurrentTransform = presentationLayer.transform
-        }
-        
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        fromView.layer?.transform = fromCurrentTransform
-        toView.layer?.transform = toCurrentTransform
-        CATransaction.commit()
-        
-        fromView.layer?.removeAllAnimations()
-        toView.layer?.removeAllAnimations()
-        
-        let (fromViewAnimations, toViewAnimations) = animation(fromView, toView)
-        
-        for (index, anim) in fromViewAnimations.enumerated() {
-            fromView.layer?.add(anim, forKey: "popAnimation\(index)")
-        }
-        
-        for (index, anim) in toViewAnimations.enumerated() {
-            toView.layer?.add(anim, forKey: "popAnimation\(index)")
-        }
-        
-        // Create the shade view
-        let shadeView = toView.installShadeView(color: NSColor.black.withAlphaComponent(0.25))
-        
-        // Animate the shade view
-        let shadeAnim = CABasicAnimation(keyPath: #keyPath(CALayer.opacity))
-        shadeAnim.fromValue = 1.0
-        shadeAnim.toValue = 0.0
-        shadeAnim.duration = Self.animationDuration
-        shadeAnim.timingFunction = CAMediaTimingFunction(name: .easeIn)
-        shadeAnim.fillMode = CAMediaTimingFillMode.forwards
-        shadeAnim.isRemovedOnCompletion = false
-        
-        // Set up a separate transaction for the shade animation to handle its removal
-        CATransaction.begin()
-        CATransaction.setCompletionBlock {
-            // Remove the shade view when animation completes
-            shadeView.removeFromSuperview()
-        }
-        shadeView.layer?.add(shadeAnim, forKey: "shadeAnimation")
-        CATransaction.commit()
-    }
-
     // 3. Keep your defaultPushAnimation and defaultPopAnimation functions
     func defaultPushAnimation() -> AnimationBlock {
         return { [weak self] (fromView, toView) in
@@ -383,7 +383,7 @@ open class NavigationController: NSViewController {
             slideToLeftAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
             slideToLeftAnimation.fillMode = CAMediaTimingFillMode.forwards
             slideToLeftAnimation.isRemovedOnCompletion = false
-
+            
             // For the view coming in from the right
             let slideFromRightAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
             slideFromRightAnimation.fromValue = NSValue(caTransform3D: CATransform3DMakeTranslation(containerViewBounds.width, 0, 0))
@@ -392,15 +392,15 @@ open class NavigationController: NSViewController {
             slideFromRightAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
             slideFromRightAnimation.fillMode = CAMediaTimingFillMode.forwards
             slideFromRightAnimation.isRemovedOnCompletion = false
-
+            
             return ([slideToLeftAnimation], [slideFromRightAnimation])
         }
     }
-
+    
     func defaultPopAnimation() -> AnimationBlock {
         return { [weak self] (fromView, toView) in
             let containerViewBounds = self?.view.bounds ?? .zero
-
+            
             // For the view being popped (moving right)
             let slideToRightFromCenterAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
             
@@ -416,7 +416,7 @@ open class NavigationController: NSViewController {
             slideToRightFromCenterAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.default)
             slideToRightFromCenterAnimation.fillMode = CAMediaTimingFillMode.forwards
             slideToRightFromCenterAnimation.isRemovedOnCompletion = false
-
+            
             // For the view being revealed (moving from left to center)
             let slideToRightAnimation = CABasicAnimation(keyPath: #keyPath(CALayer.transform))
             
@@ -432,7 +432,7 @@ open class NavigationController: NSViewController {
             slideToRightAnimation.timingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeOut)
             slideToRightAnimation.fillMode = CAMediaTimingFillMode.forwards
             slideToRightAnimation.isRemovedOnCompletion = false
-
+            
             return ([slideToRightFromCenterAnimation], [slideToRightAnimation])
         }
     }
@@ -457,20 +457,3 @@ open class NavigationController: NSViewController {
 }
 
 typealias AnimationBlock = (_ fromView: NSView?, _ toView: NSView?) -> (fromViewAnimations: [CAAnimation], toViewAnimations: [CAAnimation])
-
-extension NSView {
-    
-    private static let ShadeViewName = "ShadeView"
-    
-    func installShadeView(color: NSColor) -> NSView {
-        let shadeView = NSView(frame: bounds)
-        shadeView.wantsLayer = true
-        shadeView.layer?.backgroundColor = color.cgColor
-        shadeView.identifier = .init(NSView.ShadeViewName)
-        addSubview(shadeView)
-        shadeView.translatesAutoresizingMaskIntoConstraints = false
-        shadeView.activateConstraints(.fillSuperview)
-        return shadeView
-    }
-    
-}
