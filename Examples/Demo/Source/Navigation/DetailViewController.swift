@@ -22,8 +22,8 @@ class DetailViewController: NSViewController {
         self.color = color
         self.icon = icon
         super.init(nibName: nil, bundle: nil)
-        // Optional: guide sheet sizing
-        self.preferredContentSize = NSSize(width: 300, height: 200)
+//        // Optional: guide sheet sizing
+//        self.preferredContentSize = NSSize(width: 300, height: 200) bad
     }
 
     @available(*, unavailable)
@@ -34,7 +34,7 @@ class DetailViewController: NSViewController {
     override func loadView() {
         let container = NSView(frame: .zero)
         container.wantsLayer = true
-        container.layer?.opacity = 0.95
+//        container.layer?.opacity = 0.95
         if let bg = color {
             container.layer?.backgroundColor = bg.cgColor
         }
@@ -70,8 +70,16 @@ class DetailViewController: NSViewController {
         // Add stack to view and center
         view.addSubview(stack)
         NSLayoutConstraint.activate([
+            // Center the stack
             stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+
+            // Boundaries so the stack doesn't float without reference
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 40),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -40),
+            
+            // Optional: limit max width so it doesn't stretch too much
+            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 600)
         ])
     }
 }

@@ -54,7 +54,7 @@ class DemoSheetViewController: NSViewController {
         toolbar.addSubview(enqueueFiveButton)
 
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: view.topAnchor),
+            toolbar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             toolbar.heightAnchor.constraint(equalToConstant: 44),

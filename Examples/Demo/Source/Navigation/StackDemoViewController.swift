@@ -9,10 +9,10 @@ import AppKit
 import Navigation
 
 /// A simple demo view controller for testing navigation
-class DemoViewController: NSViewController {
+class StackDemoViewController: NSViewController {
 
-    private lazy var navigationCoordinator: NavigationCoordinator = {
-        NavigationCoordinator(initialRoutes: [AnyHashable("Welcome to the Demo")]) { router in
+    private lazy var navigationCoordinator: StackNavigationCoordinator = {
+        StackNavigationCoordinator(initialRoutes: [AnyHashable("Welcome to the Demo")]) { router in
             router.navigationDestination(for: String.self) { value in
                 // Create a distinct VC for each pushed string
                 let color = NSColor(
@@ -27,17 +27,21 @@ class DemoViewController: NSViewController {
     }()
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        view.translatesAutoresizingMaskIntoConstraints = false
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        let navController = navigationCoordinator.controller
+        embed(child: navController)
 
-        // — Toolbar —
         let toolbar = NSView()
+        toolbar.wantsLayer = true
+        toolbar.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         toolbar.translatesAutoresizingMaskIntoConstraints = false
+
         view.addSubview(toolbar)
 
         let pushButton = NSButton(title: "Push Next", target: self, action: #selector(pushNext))
@@ -47,9 +51,13 @@ class DemoViewController: NSViewController {
         let popButton = NSButton(title: "Pop Last", target: self, action: #selector(popLast))
         popButton.translatesAutoresizingMaskIntoConstraints = false
         toolbar.addSubview(popButton)
+        
+        let popRootButton = NSButton(title: "Pop To Root", target: self, action: #selector(popRoot))
+        popRootButton.translatesAutoresizingMaskIntoConstraints = false
+        toolbar.addSubview(popRootButton)
 
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: view.topAnchor),
+            toolbar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             toolbar.heightAnchor.constraint(equalToConstant: 44),
@@ -59,29 +67,23 @@ class DemoViewController: NSViewController {
 
             popButton.leadingAnchor.constraint(equalTo: pushButton.trailingAnchor, constant: 8),
             popButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
-        ])
-
-        // — Embed the navigation controller —
-        let navController = navigationCoordinator.controller
-        addChild(navController)
-        view.addSubview(navController.view)
-        navController.view.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            navController.view.topAnchor.constraint(equalTo: toolbar.bottomAnchor),
-            navController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            navController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            navController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            
+            popRootButton.leadingAnchor.constraint(equalTo: popButton.trailingAnchor, constant: 8),
+            popRootButton.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor)
         ])
     }
-
     // MARK: – Actions
 
     @objc private func pushNext() {
-        let next = "Next \(Int.random(in: 1...1000))"
+        let next = "Next \(Int.random(in: 1...10))"
         navigationCoordinator.push(AnyHashable(next))
     }
 
     @objc private func popLast() {
         navigationCoordinator.pop()
+    }
+    
+    @objc private func popRoot() {
+        navigationCoordinator.popRoot()
     }
 }

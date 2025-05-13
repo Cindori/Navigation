@@ -17,7 +17,7 @@ public extension NSViewController {
     }
 
     /// Returns the immediate parent cast to NavigationWrapperViewController, if present.
-    internal var navigationWrapper: NavigationWrapperViewController? {
-        return parent as? NavigationWrapperViewController
+    internal var navigationWrapper: StackWrapperViewController? {
+        return parent as? StackWrapperViewController
     }
 }

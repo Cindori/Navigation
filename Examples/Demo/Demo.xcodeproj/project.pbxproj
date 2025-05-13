@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		75482F142DCCDAAE00C3E934 /* Navigation in Frameworks */ = {isa = PBXBuildFile; productRef = 75482F132DCCDAAE00C3E934 /* Navigation */; };
-		75C5E8422DCCE1940092DA5E /* Navigation in Frameworks */ = {isa = PBXBuildFile; productRef = 75C5E8412DCCE1940092DA5E /* Navigation */; };
+		75D85A582DD3B28D0095CD65 /* Navigation in Frameworks */ = {isa = PBXBuildFile; productRef = 75D85A572DD3B28D0095CD65 /* Navigation */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,8 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				75C5E8422DCCE1940092DA5E /* Navigation in Frameworks */,
-				75482F142DCCDAAE00C3E934 /* Navigation in Frameworks */,
+				75D85A582DD3B28D0095CD65 /* Navigation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -66,15 +64,14 @@
 			buildRules = (
 			);
 			dependencies = (
-				75C5F3E42DCCE2020092DA5E /* PBXTargetDependency */,
+				75D85A5A2DD3B2970095CD65 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				75482EEC2DCCD9F300C3E934 /* Source */,
 			);
 			name = Demo;
 			packageProductDependencies = (
-				75482F132DCCDAAE00C3E934 /* Navigation */,
-				75C5E8412DCCE1940092DA5E /* Navigation */,
+				75D85A572DD3B28D0095CD65 /* Navigation */,
 			);
 			productName = Demo;
 			productReference = 75482EEA2DCCD9F300C3E934 /* Demo.app */;
@@ -105,7 +102,7 @@
 			mainGroup = 75482EE12DCCD9F300C3E934;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				75C5E8402DCCE1940092DA5E /* XCLocalSwiftPackageReference "../../../Navigation" */,
+				75D85A562DD3B28D0095CD65 /* XCLocalSwiftPackageReference "../../../Navigation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 75482EEB2DCCD9F300C3E934 /* Products */;
@@ -138,9 +135,9 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		75C5F3E42DCCE2020092DA5E /* PBXTargetDependency */ = {
+		75D85A5A2DD3B2970095CD65 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			productRef = 75C5F3E32DCCE2020092DA5E /* Navigation */;
+			productRef = 75D85A592DD3B2970095CD65 /* Navigation */;
 		};
 /* End PBXTargetDependency section */
 
@@ -277,12 +274,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cindori.Navigation.Demo.Demo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -304,12 +300,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.cindori.Navigation.Demo.Demo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -343,24 +338,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		75C5E8402DCCE1940092DA5E /* XCLocalSwiftPackageReference "../../../Navigation" */ = {
+		75D85A562DD3B28D0095CD65 /* XCLocalSwiftPackageReference "../../../Navigation" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../../Navigation;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		75482F132DCCDAAE00C3E934 /* Navigation */ = {
+		75D85A572DD3B28D0095CD65 /* Navigation */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Navigation;
 		};
-		75C5E8412DCCE1940092DA5E /* Navigation */ = {
+		75D85A592DD3B2970095CD65 /* Navigation */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = Navigation;
-		};
-		75C5F3E32DCCE2020092DA5E /* Navigation */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 75C5E8402DCCE1940092DA5E /* XCLocalSwiftPackageReference "../../../Navigation" */;
+			package = 75D85A562DD3B28D0095CD65 /* XCLocalSwiftPackageReference "../../../Navigation" */;
 			productName = Navigation;
 		};
 /* End XCSwiftPackageProductDependency section */

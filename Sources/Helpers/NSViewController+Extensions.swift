@@ -7,7 +7,7 @@
 
 import AppKit
 
-extension NSViewController {
+public extension NSViewController {
     
     /// Convenience function for embedding a view controller that will completely fill the view.
     func embed(child: NSViewController, in hostView: NSView? = nil, positioned place: NSWindow.OrderingMode = .above, relativeTo otherView: NSView? = nil) {

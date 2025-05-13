@@ -1,46 +1,54 @@
 //
 //  AppDelegate.swift
-//  Demo
+//  TestApp
 //
-//  Created by Oskar Groth on 2025-05-08.
+//  Created by Oskar Groth on 2024-09-11.
 //
 
-import Cocoa
+import AppKit
+import SwiftUI
+import Navigation
 
 @main
-class AppDelegate: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
+@MainActor class AppDelegate: NSObject, NSApplicationDelegate {
+    static var shared: AppDelegate!
+    private var window: NSWindow?
     
     static func main() {
-        let app = NSApplication.shared
-        app.setActivationPolicy(.regular)
-        let delegate = AppDelegate()
-        app.delegate = delegate
-        app.run()
+        _ = NSApplication.shared // Create NSApplication before accessing delegate
+        AppDelegate.shared = AppDelegate()
+        NSApp.delegate = AppDelegate.shared
+        NSApp.run()
     }
-
+    
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // 1) Instantiate the demo view controller
-        let demoVC = DemoSheetViewController()
-
-        // 2) Create the window programmatically
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
-            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+        // Create a ContentView (SwiftUI View)
+        let contentView = AppView()
+        
+        // Create a hosting controller to wrap the SwiftUI view
+        let hostingController = NSHostingController(rootView: contentView)
+        
+        // Create a window
+        let window = ToolbarWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        
+        // Configure the window
+        window.title = "TestApp"
         window.center()
-        window.title = "Demo App"
-        window.contentViewController = demoVC
+        window.contentViewController = hostingController
+        window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        self.window = window
     }
-
+    
     func applicationWillTerminate(_ aNotification: Notification) {
-        // Cleanup if needed
+        // Insert code here to tear down your application
     }
-
+    
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return true
     }

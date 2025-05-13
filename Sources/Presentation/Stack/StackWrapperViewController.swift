@@ -8,14 +8,14 @@
 
 import AppKit
 
-class NavigationWrapperViewController: NSViewController {
+class StackWrapperViewController: NSViewController {
     
     let containerView = NSView()
     let backgroundView = NSVisualEffectView()
     let viewController: NSViewController
     var viewToTopConstraint: NSLayoutConstraint!
 
-    weak var navigationController: NavigationController?
+    weak var navigationController: StackNavigationController?
     
     private var shadeView: NSView = {
         let view = NSView(frame: .zero)
@@ -27,7 +27,7 @@ class NavigationWrapperViewController: NSViewController {
         return view
     }()
     
-    init(viewController: NSViewController, navigationController: NavigationController) {
+    init(viewController: NSViewController, navigationController: StackNavigationController) {
         self.viewController = viewController
         self.navigationController = navigationController
         super.init(nibName: nil, bundle: nil)
@@ -41,7 +41,8 @@ class NavigationWrapperViewController: NSViewController {
     }
     
     override func loadView() {
-        view = NSView(frame: .zero, usingConstraints: true, wantsLayer: true)
+        view = NSView(frame: .zero)
+        view.wantsLayer = true
         view.layer?.masksToBounds = true
     }
     
@@ -77,7 +78,7 @@ class NavigationWrapperViewController: NSViewController {
         let anim = CABasicAnimation(keyPath: #keyPath(CALayer.opacity))
         anim.fromValue = fromOpacity
         anim.toValue = toOpacity
-        anim.duration = NavigationController.animationDuration
+        anim.duration = StackNavigationController.animationDuration
         anim.timingFunction = CAMediaTimingFunction(name: active ? .easeOut : .easeIn)
         anim.fillMode = .forwards
         anim.isRemovedOnCompletion = false
